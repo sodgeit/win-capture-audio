@@ -22,6 +22,9 @@
 #include "audio-capture.h"
 #include "obfuscate.h"
 
+#include <chrono>
+#include <thread>
+
 VOID CALLBACK set_update(PVOID lpParam, BOOLEAN TimerOrWaitFired)
 {
 	auto *ctx = static_cast<audio_capture_context_t *>(lpParam);
@@ -123,7 +126,7 @@ static void audio_capture_worker_update(audio_capture_context_t *ctx)
 	HWND window;
 	ctx->exclude_process_tree = config.exclude_process_tree;
 
-	if (config.mode == MODE_HOTKEY) {
+	if (config.mode == MODE_HOTKEY  || config.mode == MODE_FOREGROUND) {
 		if (config.hotkey_window == NULL) {
 			ctx->window_selected = false;
 			ctx->next_process_id = 0;
@@ -251,6 +254,28 @@ static DWORD WINAPI audio_capture_worker_thread(LPVOID lpParam)
 	return 0;
 }
 
+static DWORD WINAPI audio_capture_windowworker_thread(LPVOID lpParam)
+{
+	using namespace std::chrono_literals;
+	auto *ctx = static_cast<audio_capture_context_t *>(lpParam);
+
+	while (!ctx->windowworker_shutdown) {
+		HWND new_window = GetForegroundWindow();
+		if (ctx->config.mode == MODE_FOREGROUND &&
+		    ctx->config.hotkey_window != new_window) {
+			EnterCriticalSection(&ctx->config_section);
+				debug("switched to new window");
+				ctx->config.hotkey_window = new_window;
+			LeaveCriticalSection(&ctx->config_section);
+			SetEvent(ctx->events[EVENT_UPDATE]);
+		}
+
+		std::this_thread::sleep_for(2000ms);
+	}
+
+	return 0;
+}
+
 static void audio_capture_update(void *data, obs_data_t *settings)
 {
 	auto *ctx = static_cast<audio_capture_context_t *>(data);
@@ -269,7 +294,7 @@ static void audio_capture_update(void *data, obs_data_t *settings)
 
 	EnterCriticalSection(&ctx->config_section);
 
-	if (new_config.mode == MODE_HOTKEY) {
+	if (new_config.mode == MODE_HOTKEY || new_config.mode == MODE_FOREGROUND) {
 		if (ctx->config.mode != new_config.mode)
 			ctx->config.hotkey_window = NULL;
 	} else {
@@ -367,6 +392,13 @@ static void audio_capture_destroy(void *data)
 
 	safe_close_handle(&ctx->worker_thread);
 
+	if (ctx->windowworker_initialized) {
+		ctx->windowworker_shutdown = true;
+		WaitForSingleObject(ctx->windowworker_thread, INFINITE);
+	}
+
+	safe_close_handle(&ctx->windowworker_thread);
+
 	if (ctx->timer != NULL)
 		DeleteTimerQueueTimer(ctx->timer_queue, ctx->timer, NULL);
 
@@ -423,6 +455,14 @@ static void *audio_capture_create(obs_data_t *settings, obs_source_t *source)
 	}
 
 	ctx->worker_initialized = true;
+
+	ctx->windowworker_thread = CreateThread(NULL, 0, audio_capture_windowworker_thread,
+					  ctx, 0, NULL);
+	if (ctx->windowworker_thread == NULL) {
+		error("failed to create windowworker thread");
+		goto fail;
+	}
+
 	return ctx;
 
 fail:
@@ -523,6 +563,7 @@ static obs_properties_t *audio_capture_properties(void *data)
 
 	obs_property_list_add_int(p, TEXT_MODE_WINDOW, MODE_WINDOW);
 	obs_property_list_add_int(p, TEXT_MODE_HOTKEY, MODE_HOTKEY);
+	obs_property_list_add_int(p, TEXT_MODE_FOREGROUND, MODE_FOREGROUND);
 
 	obs_property_set_modified_callback(p, mode_callback);
 
