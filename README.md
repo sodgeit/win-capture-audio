@@ -22,3 +22,23 @@ Internally it uses [ActivateAudioInterfaceAsync](https://docs.microsoft.com/en-u
 - **Application Audio Output Capture source not showing up after install:** this means that either your OBS is out-of-date (check that it is at least 27.1.x) or you have installed the plugin to the wrong location. To re-install, first uninstall via "Add or remove programs" in the Windows settings, and then run the installer again. Make sure to select the top-level `obs-studio/` folder in (probably) `C:/Program Files/`.
 
 - **Application Audio Output Capture source not picking up any audio:** this happens when your Windows is too old and does not have support for the API. Note that even if you have a more recent major version such as `20H2` you will still need the latest updates for the plugin to work. If you are on a very old version you might need more than one update for this to work, and the second update might not show up for a few days after the first update.
+
+## Build
+
+You need to have the Sources for OBS of at least `27.1.3` ready, configured and generated via `Cmake`
+
+Let's assume the Build-Directory of OBS resides in this location: `C:\Development\obs-studio\build64`
+
+Then you have to run the following commands:
+
+```bash
+git clone https://github.com/sodgeit/win-capture-audio.git
+cd win-capture-audio
+mkdir build
+cd build
+cmake -D LibObs_DIR=C:/Development/obs-studio/build64/libobs ..
+```
+
+Open the File `build/win-capture-audio.sln` with `Visual Studio Express 2019` and compile it.
+
+The final binaries and resources of the plugin will be in the folder `release/`
