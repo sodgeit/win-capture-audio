@@ -26,6 +26,7 @@
 #define TEXT_MODE                      obs_module_text("Mode")
 #define TEXT_MODE_WINDOW               obs_module_text("Mode.Window")
 #define TEXT_MODE_HOTKEY               obs_module_text("Mode.Hotkey")
+#define TEXT_MODE_FOREGROUND           obs_module_text("Mode.Foreground")
 
 #define TEXT_WINDOW                    obs_module_text("Window")
 #define TEXT_WINDOW_PRIORITY           obs_module_text("Window.Priority")
@@ -43,7 +44,7 @@
 
 /* clang-format on */
 
-enum mode { MODE_WINDOW, MODE_HOTKEY };
+enum mode { MODE_WINDOW, MODE_HOTKEY, MODE_FOREGROUND };
 
 struct audio_capture_config_t {
 	enum mode mode;
@@ -58,6 +59,10 @@ struct audio_capture_config_t {
 struct audio_capture_context_t {
 	bool worker_initialized;
 	HANDLE worker_thread;
+
+	bool windowworker_initialized;
+	bool windowworker_shutdown;
+	HANDLE windowworker_thread;
 
 	CRITICAL_SECTION config_section;
 	audio_capture_config_t config;
