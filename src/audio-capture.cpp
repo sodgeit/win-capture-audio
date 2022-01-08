@@ -260,6 +260,8 @@ static DWORD WINAPI audio_capture_windowworker_thread(LPVOID lpParam)
 
 	while (!ctx->windowworker_shutdown) {
 		HWND new_window = GetForegroundWindow();
+		if (is_uwp_window(new_window))
+			new_window = get_uwp_actual_window(new_window);
 		if (ctx->config.mode == MODE_FOREGROUND &&
 		    ctx->config.hotkey_window != new_window) {
 			EnterCriticalSection(&ctx->config_section);
